@@ -1,0 +1,97 @@
+const express = require("express");
+const fs = require("fs");
+const app = express();
+const PORT = 5000;
+
+app.use(express.json());
+
+const filePath = "./contact.json";
+
+// Read contacts from file safely
+function getContacts() {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return [];
+    }
+    const data = fs.readFileSync(filePath, "utf8");
+    return JSON.parse(data || "[]");
+  } catch (error) {
+    console.error("Error reading contacts:", error.message);
+    return [];
+  }
+}
+
+// Save contacts to file
+function saveContacts(data) {
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error("Error saving contacts:", error.message);
+  }
+}
+
+// GET all contacts
+app.get("/api/contacts", (req, res) => {
+  const contacts = getContacts();
+  res.json(contacts);
+});
+
+// POST add new contact
+app.post("/api/contacts", (req, res) => {
+  const { name, email } = req.body;
+
+  if (!name || !email) {
+    return res.status(400).json({ error: "Name and email are required." });
+  }
+
+  const contacts = getContacts();
+  const newContact = { name, email };
+  contacts.push(newContact);
+  saveContacts(contacts);
+
+  res.status(201).json({ message: "Contact added", contact: newContact });
+});
+
+// PUT update a contact by index
+app.put("/api/contacts/:index", (req, res) => {
+  const index = parseInt(req.params.index);
+  const contacts = getContacts();
+
+  if (isNaN(index) || index < 0 || index >= contacts.length) {
+    return res.status(404).json({ error: "Contact not found" });
+  }
+
+  const { name, email } = req.body;
+  if (!name && !email) {
+    return res.status(400).json({ error: "Provide name or email to update." });
+  }
+
+  contacts[index] = {
+    ...contacts[index],
+    ...(name && { name }),
+    ...(email && { email })
+  };
+
+  saveContacts(contacts);
+  res.json({ message: "Contact updated", contact: contacts[index] });
+});
+
+// DELETE contact by index
+app.delete("/api/contacts/:index", (req, res) => {
+  const index = parseInt(req.params.index);
+  const contacts = getContacts();
+
+  if (isNaN(index) || index < 0 || index >= contacts.length) {
+    return res.status(404).json({ error: "Contact not found" });
+  }
+
+  const deletedContact = contacts.splice(index, 1)[0];
+  saveContacts(contacts);
+
+  res.json({ message: "Contact deleted", deleted: deletedContact });
+});
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+});
